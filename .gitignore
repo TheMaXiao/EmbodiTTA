@@ -2,6 +2,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
-checkpoints/
+checkpoints/*
+!checkpoints/
+checkpoints/*
+!checkpoints/cifar10_resnet50_candidates.pth
+!checkpoints/imagenet_resnet50_candidates.pth
 outputs/
 data/
