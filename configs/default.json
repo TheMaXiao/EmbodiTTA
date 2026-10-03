@@ -61,7 +61,7 @@
   "run_imagenetc": {
     "imagenetc_root": null,
     "imagenet_val_root": null,
-    "candidate_pool": null,
+    "candidate_pool": "checkpoints/imagenet_resnet50_candidates.pth",
     "checkpoint": null,
     "output": "outputs/imagenetc_emboditta.json",
     "severity": 5,
