@@ -22,6 +22,7 @@ class EMADomainShiftDetector:
         threshold_scale: float = 5.0,
         min_interval: int = 0,
         smoothing_window: int = 1,
+        absolute_entropy_threshold: float | None = None,
     ) -> None:
         if not 0.0 <= momentum < 1.0:
             raise ValueError("momentum must be in [0, 1)")
@@ -31,8 +32,13 @@ class EMADomainShiftDetector:
             raise ValueError("threshold_scale must be positive")
         if smoothing_window < 1:
             raise ValueError("smoothing_window must be positive")
+        if absolute_entropy_threshold is not None and absolute_entropy_threshold <= 0:
+            raise ValueError("absolute_entropy_threshold must be positive")
         self.reference_entropy = float(reference_entropy)
         self.threshold = max(float(stable_ema_std) * threshold_scale, 1e-8)
+        self.absolute_entropy_threshold = (
+            None if absolute_entropy_threshold is None else float(absolute_entropy_threshold)
+        )
         self.momentum = momentum
         self.initial_momentum = momentum
         self.min_interval = max(0, int(min_interval))
@@ -53,6 +59,7 @@ class EMADomainShiftDetector:
         threshold_scale: float = 5.0,
         max_samples: int = 1000,
         smoothing_window: int = 1,
+        absolute_entropy_threshold: float | None = None,
     ) -> "EMADomainShiftDetector":
         detector = cls(
             0.0,
@@ -60,6 +67,7 @@ class EMADomainShiftDetector:
             momentum,
             threshold_scale,
             smoothing_window=smoothing_window,
+            absolute_entropy_threshold=absolute_entropy_threshold,
         )
         ema_values: list[float] = []
         model.eval()
@@ -77,11 +85,16 @@ class EMADomainShiftDetector:
         if not ema_values:
             raise ValueError("The calibration loader did not yield any samples")
         values = torch.tensor(ema_values, dtype=torch.float64)
-        detector.reference_entropy = float(values.mean())
+        detector.reference_entropy = detector._cap_entropy(float(values.mean()))
         stable_ema_std = float(values.std(unbiased=False))
         detector.threshold = max(stable_ema_std * threshold_scale, 1e-8)
         detector.samples_since_trigger = detector.min_interval
         return detector
+
+    def _cap_entropy(self, value: float) -> float:
+        if self.absolute_entropy_threshold is not None:
+            return min(float(value), self.absolute_entropy_threshold)
+        return float(value)
 
     def _update_ema(self, entropy: float) -> float:
         if self.ema_entropy is None:
@@ -103,13 +116,18 @@ class EMADomainShiftDetector:
                 if self._recovery_seen == 100:
                     self.momentum = 0.999
                 if self._recovery_remaining == 0:
-                    self.reference_entropy = ema
+                    self.reference_entropy = self._cap_entropy(ema)
                     self.samples_since_trigger = 0
                 events.append(False)
                 continue
             self.samples_since_trigger += 1
             smoothed_ema = sum(self._ema_window) / len(self._ema_window)
             shifted = abs(smoothed_ema - self.reference_entropy) > self.threshold
+            if (
+                self.absolute_entropy_threshold is not None
+                and smoothed_ema > self.absolute_entropy_threshold
+            ):
+                shifted = True
             triggered = shifted and self.samples_since_trigger >= self.min_interval
             if triggered:
                 self.samples_since_trigger = 0
@@ -131,6 +149,7 @@ class EMADomainShiftDetector:
             self.ema_entropy = float(initial_entropy)
 
     def rebaseline(self, entropy: float) -> None:
+        entropy = self._cap_entropy(entropy)
         self.reference_entropy = float(entropy)
         self.ema_entropy = float(entropy)
         self.momentum = self.initial_momentum
@@ -148,6 +167,7 @@ def calibrate_shift_detector(
     threshold_scale: float = 5.0,
     max_samples: int = 1000,
     smoothing_window: int = 1,
+    absolute_entropy_threshold: float | None = None,
 ) -> EMADomainShiftDetector:
     return EMADomainShiftDetector.calibrate(
         model,
@@ -157,6 +177,7 @@ def calibrate_shift_detector(
         threshold_scale=threshold_scale,
         max_samples=max_samples,
         smoothing_window=smoothing_window,
+        absolute_entropy_threshold=absolute_entropy_threshold,
     )
 
 

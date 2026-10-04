@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import torch
 from torch.utils.data import ConcatDataset, Subset
 from torchvision import datasets, transforms
 
@@ -54,6 +55,7 @@ def load_imagenetc_stream(
     severity: int = 5,
     corruptions: tuple[str, ...] = IMAGENETC_CORRUPTIONS,
     samples_per_corruption: int | None = None,
+    sample_seed: int | None = None,
 ):
     if severity not in range(1, 6):
         raise ValueError("ImageNet-C severity must be between 1 and 5")
@@ -66,7 +68,13 @@ def load_imagenetc_stream(
         dataset = datasets.ImageFolder(domain_path, transform=transform)
         if samples_per_corruption is not None:
             count = min(samples_per_corruption, len(dataset))
-            dataset = Subset(dataset, range(count))
+            if sample_seed is None or count == len(dataset):
+                indices = range(count)
+            else:
+                generator = torch.Generator()
+                generator.manual_seed(int(sample_seed))
+                indices = torch.randperm(len(dataset), generator=generator)[:count].tolist()
+            dataset = Subset(dataset, indices)
         domain_datasets.append(dataset)
     if not domain_datasets:
         raise ValueError("At least one ImageNet-C corruption is required")
