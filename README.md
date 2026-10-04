@@ -47,20 +47,11 @@ python run_cifar10c.py --config configs/default.json
 
 The scripts in `scripts/` provide equivalent Bash launch commands. Command-line options can override config values; use `--help` to see available options. Candidate pools and evaluation results are saved to the configured output paths.
 
-### Detector and adaptation options
+### Shift detection and adaptation
 
-| Config key / flag | Default | Description |
-| --- | --- | --- |
-| `online_candidates` / `--online-candidates` | `true` | Build the pool online from the source model and each adapted model (Option B). Set to `false`/`--no-online-candidates` to load `candidate_pool` instead (Option A). |
-| `candidate_pool` / `--candidate-pool` | `checkpoints/imagenet_resnet50_candidates.pth` | Prebuilt pool used when `online_candidates` is false. |
-| `reference_entropy` / `--reference-entropy` | `0.54` | Fixed source/base entropy. When set, calibration is skipped. Set to `null` to calibrate on clean `imagenet_val_root`. |
-| `fixed_threshold` / `--fixed-threshold` | `0.3` | Shift-detector threshold used with `reference_entropy`. |
-| `absolute_entropy_threshold` / `--absolute-entropy-threshold` | `6.0` | Force an adaptation trigger whenever the smoothed entropy exceeds this value; the reference entropy is also capped at this value. |
-| `adaptation_entropy_delta` / `--adaptation-entropy-delta` | `0.02` | Skip adaptation when the incoming window's pre-adaptation mean entropy is within this delta of the last adapted window's mean entropy (avoids redundant triggers). |
-| `ema_momentum` / `--ema-momentum` | `0.998` | Momentum of the entropy EMA used by the shift detector. |
-| `samples_per_corruption` / `--samples-per-corruption` | `null` (all) | Optionally evaluate a random subset per corruption; `--sample-seed` controls the sampling seed. |
+ImageNet-C uses a fixed shift-detection mechanism that is part of the method rather than a tunable knob: adaptation triggers on the usual entropy threshold (`reference_entropy` and `fixed_threshold` in the config, defaulting to `0.54` and `0.3`) and is additionally forced whenever the smoothed entropy exceeds `6.0`, which also caps the reference entropy at `6.0`. To avoid redundant work, an adaptation whose incoming window mean entropy is within `0.02` of the last adapted window is skipped without changing the model. The default config sets `reference_entropy` and `fixed_threshold`; set `reference_entropy` to `null` to calibrate on clean `imagenet_val_root` instead.
 
-For the 10k-samples-per-corruption setting used in our experiments:
+To evaluate a random subset of each corruption (for example 10k samples per corruption as in our experiments):
 
 ```bash
 python run_imagenetc.py --config configs/default.json \

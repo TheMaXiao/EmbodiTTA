@@ -71,8 +71,6 @@
     "calibration_samples": 1000,
     "reference_entropy": 0.54,
     "fixed_threshold": 0.3,
-    "absolute_entropy_threshold": 6.0,
-    "adaptation_entropy_delta": 0.02,
     "adaptation_samples": 512,
     "ema_momentum": 0.998,
     "threshold_scale": 5.0,

@@ -19,6 +19,13 @@ from emboditta.config import parse_configured_args, require_values
 from emboditta.data import IMAGENETC_CORRUPTIONS, load_clean_imagenet, load_imagenetc_stream
 from emboditta.models import load_resnet50
 
+# Fixed shift-detection mechanism (not user-tunable): force an adaptation
+# trigger once the smoothed entropy exceeds this level, cap the reference at
+# the same level, and skip adaptations whose incoming window entropy is within
+# the delta of the last adapted window.
+ABSOLUTE_ENTROPY_THRESHOLD = 6.0
+ADAPTATION_ENTROPY_DELTA = 0.02
+
 
 def evaluate(args):
     device = torch.device(args.device)
@@ -36,7 +43,7 @@ def evaluate(args):
             stable_ema_std=0.0,
             momentum=args.ema_momentum,
             threshold_scale=1.0,
-            absolute_entropy_threshold=args.absolute_entropy_threshold,
+            absolute_entropy_threshold=ABSOLUTE_ENTROPY_THRESHOLD,
         )
         if args.fixed_threshold is not None:
             detector.threshold = float(args.fixed_threshold)
@@ -56,7 +63,7 @@ def evaluate(args):
             momentum=args.ema_momentum,
             threshold_scale=args.threshold_scale,
             max_samples=args.calibration_samples,
-            absolute_entropy_threshold=args.absolute_entropy_threshold,
+            absolute_entropy_threshold=ABSOLUTE_ENTROPY_THRESHOLD,
         )
 
     corruptions = tuple(name.strip() for name in args.corruptions.split(",") if name.strip())
@@ -111,9 +118,8 @@ def evaluate(args):
         # entropy barely differs from the entropy of the last adapted window.
         window_entropy = float(entropy_from_logits(previous_window_logits).mean().item())
         if (
-            args.adaptation_entropy_delta is not None
-            and last_adapted_window_entropy is not None
-            and abs(window_entropy - last_adapted_window_entropy) < args.adaptation_entropy_delta
+            last_adapted_window_entropy is not None
+            and abs(window_entropy - last_adapted_window_entropy) < ADAPTATION_ENTROPY_DELTA
         ):
             window_predictions = previous_window_logits.argmax(dim=1)
             correct += int((window_predictions == labels_window).sum().item())
@@ -178,7 +184,6 @@ def evaluate(args):
         "trigger_positions": trigger_positions,
         "skip_count": len(skipped_positions),
         "skipped_positions": skipped_positions,
-        "adaptation_entropy_delta": args.adaptation_entropy_delta,
         "adaptations": adaptation_reports,
         "detector_reference_entropy": detector.reference_entropy,
         "detector_threshold": detector.threshold,
@@ -212,12 +217,6 @@ def main():
                         help="Fixed source/base entropy; when set, calibration is skipped")
     parser.add_argument("--fixed-threshold", type=float, default=None,
                         help="Fixed shift-detector threshold used with --reference-entropy")
-    parser.add_argument("--absolute-entropy-threshold", type=float, default=None,
-                        help="Force an adaptation trigger whenever the smoothed entropy exceeds this value; "
-                             "also caps the reference entropy at this value")
-    parser.add_argument("--adaptation-entropy-delta", type=float, default=None,
-                        help="Skip adaptation when the incoming window's pre-adaptation mean entropy is within "
-                             "this delta of the last adapted window's mean entropy")
     parser.add_argument("--adaptation-samples", type=int, default=512)
     parser.add_argument("--ema-momentum", type=float, default=0.995)
     parser.add_argument("--threshold-scale", type=float, default=5.0)
