@@ -14,24 +14,25 @@ python -m pip install -r requirements.txt
 
 Set dataset and checkpoint paths in [`configs/default.json`](configs/default.json). ImageNet data should use `ImageFolder` class directories. CIFAR-10 candidate construction expects the extracted torchvision CIFAR-10 training data; CIFAR-10-C expects its `.npy` corruption arrays and `labels.npy`.
 
-Prebuilt candidate pools are included at `checkpoints/cifar10_resnet50_candidates.pth` and `checkpoints/imagenet_resnet50_candidates.pth`. CIFAR-10 evaluation still requires your CIFAR-10-C data and a trusted serialized model checkpoint. ImageNet-C evaluation requires ImageNet-C data; by default it builds the candidate pool online from the test stream (set `online_candidates` to `false` to load the included pool instead). Candidate construction scripts remain available if you want to rebuild either pool from labeled training data.
-
-The included `checkpoints/imagenet_resnet50_candidates.pth` was regenerated so its BatchNorm statistics are consistent with the default torchvision ResNet-50 weights (the original pool was trained with different weights and loading it into the default model destroyed accuracy). If your `--checkpoint` differs, rebuild the pool (Option A) or use the online option (Option B) so the candidates always match the evaluated model.
+Prebuilt candidate pools are included at `checkpoints/cifar10_resnet50_candidates.pth` and `checkpoints/imagenet_resnet50_candidates.pth`, and both datasets support the two candidate-construction options below. CIFAR-10 evaluation requires your CIFAR-10-C data and a trusted serialized model checkpoint; ImageNet-C evaluation requires ImageNet-C data. Candidate construction scripts remain available if you want to rebuild either pool from labeled training data.
 
 ### Two ways to build the candidate pool
 
-The candidate pool is a set of source-domain BatchNorm states that adaptation can fall back to. Both options below produce the same `list[dict[str, Tensor]]` format.
+The candidate pool is a set of source-domain BatchNorm states that adaptation can fall back to. Both options below produce the same `list[dict[str, Tensor]]` format, and both `run_imagenetc.py` and `run_cifar10c.py` support them through the `online_candidates` config key or `--online-candidates` / `--no-online-candidates`.
 
 **Option A - offline from labeled source (training) data.** Cluster source features with KMeans and fine-tune BatchNorm per cluster using `build_candidates.py`:
 
 ```bash
 python build_candidates.py --dataset imagenet --config configs/default.json
 python run_imagenetc.py --config configs/default.json --no-online-candidates
+python run_cifar10c.py --config configs/default.json --no-online-candidates
 ```
 
-This requires `build_candidates.imagenet.source_root` (or `--source-root`) to point at an ImageNet `ImageFolder`. The prebuilt `checkpoints/*_candidates.pth` files are loaded when `online_candidates` is `false`.
+This requires `build_candidates.<dataset>.source_root` (or `--source-root`) to point at the labeled source data. The prebuilt `checkpoints/*_candidates.pth` files are loaded when `online_candidates` is `false`.
 
-**Option B - online from the test domains (no source data needed).** Enable `"online_candidates": true` (the default). The pool starts with the source model's BatchNorm state and, after every adaptation trigger, the adapted BatchNorm state is appended as a new candidate. Later triggers select the nearest candidate among the source state and all previously adapted states, which lets the model fall back to earlier/source domains. This is the recommended option when labeled source data is unavailable.
+**Option B - online from the test domains (no source data needed).** Enable `online_candidates` (or pass `--online-candidates`). The pool starts with the source model's BatchNorm state and, after every adaptation trigger, the adapted BatchNorm state is appended as a new candidate. Later triggers select the nearest candidate among the source state and all previously adapted states, which lets the model fall back to earlier/source domains. This is useful when labeled source data is unavailable.
+
+By default, ImageNet-C uses Option B (`online_candidates: true`) and CIFAR-10-C uses Option A (`online_candidates: false`).
 
 ## Quick Start
 

@@ -115,8 +115,12 @@ def evaluate(args):
     device = torch.device(args.device)
     model = load_trusted_model(args.model_checkpoint, device, args.model_module_root)
     baseline_model = copy.deepcopy(model).eval()
-    candidates = load_candidate_pool(args.candidate_pool)
-    candidates.append(extract_bn_state(model))
+    if args.online_candidates:
+        # Start the pool with the source model and grow it with each adapted model.
+        candidates = [extract_bn_state(model)]
+    else:
+        candidates = load_candidate_pool(args.candidate_pool)
+        candidates.append(extract_bn_state(model))
 
     corruptions = tuple(item.strip() for item in args.corruptions.split(",") if item.strip())
     dataset = CIFAR10CStream(
@@ -204,6 +208,9 @@ def evaluate(args):
             entropy_margin=args.entropy_margin,
             consistency_weight=args.consistency_weight,
         )
+        if args.online_candidates:
+            # Keep the post-adaptation BN state as a new candidate for later triggers.
+            candidates.append(extract_bn_state(model))
         with torch.no_grad():
             adapted_predictions = torch.cat(
                 [
@@ -254,6 +261,7 @@ def evaluate(args):
         "sample_count": total,
         "baseline_accuracy": int(baseline_correct.sum()) / len(dataset),
         "emboditta_accuracy": int(method_correct.sum()) / total if total else 0.0,
+        "online_candidates": args.online_candidates,
         "trigger_count": len(trigger_positions),
         "trigger_positions": trigger_positions,
         "initial_reference_entropy": args.reference_entropy,
@@ -275,6 +283,9 @@ def main():
     parser.add_argument("--cifar10c-root", help="Directory containing CIFAR-10-C .npy files")
     parser.add_argument("--model-checkpoint", help="Trusted serialized CIFAR-10 model")
     parser.add_argument("--candidate-pool", help="CIFAR-10 source-derived BN candidate list")
+    parser.add_argument("--online-candidates", action=argparse.BooleanOptionalAction, default=False,
+                        help="Build the candidate pool online: seed it with the source model and append the "
+                             "adapted BN state after every trigger (use --no-online-candidates to load --candidate-pool)")
     parser.add_argument("--model-module-root", help="Optional sys.path entry needed by the serialized model")
     parser.add_argument("--output", default="outputs/cifar10c_emboditta.json")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -302,7 +313,9 @@ def main():
     parser.add_argument("--baseline-batch-size", type=int, default=64)
     parser.add_argument("--workers", type=int, default=2)
     args = parse_configured_args(parser, "run_cifar10c")
-    require_values(parser, args, ("cifar10c_root", "model_checkpoint", "candidate_pool"))
+    require_values(parser, args, ("cifar10c_root", "model_checkpoint"))
+    if not args.online_candidates:
+        require_values(parser, args, ("candidate_pool",))
     evaluate(args)
 
 

@@ -33,6 +33,7 @@
     "cifar10c_root": null,
     "model_checkpoint": null,
     "candidate_pool": "checkpoints/cifar10_resnet50_candidates.pth",
+    "online_candidates": false,
     "model_module_root": null,
     "output": "outputs/cifar10c_emboditta.json",
     "severity": 5,
