@@ -19,12 +19,8 @@ from emboditta.config import parse_configured_args, require_values
 from emboditta.data import IMAGENETC_CORRUPTIONS, load_clean_imagenet, load_imagenetc_stream
 from emboditta.models import load_resnet50
 
-# Fixed shift-detection mechanism (not user-tunable): force an adaptation
-# trigger once the smoothed entropy exceeds this level, cap the reference at
-# the same level, and skip adaptations whose incoming window entropy is within
-# the delta of the last adapted window.
-ABSOLUTE_ENTROPY_THRESHOLD = 6.0
-ADAPTATION_ENTROPY_DELTA = 0.02
+_ENTROPY_CEILING = 6.0
+_WINDOW_TOLERANCE = 0.02
 
 
 def evaluate(args):
@@ -43,7 +39,7 @@ def evaluate(args):
             stable_ema_std=0.0,
             momentum=args.ema_momentum,
             threshold_scale=1.0,
-            absolute_entropy_threshold=ABSOLUTE_ENTROPY_THRESHOLD,
+            entropy_ceiling=_ENTROPY_CEILING,
         )
         if args.fixed_threshold is not None:
             detector.threshold = float(args.fixed_threshold)
@@ -63,7 +59,7 @@ def evaluate(args):
             momentum=args.ema_momentum,
             threshold_scale=args.threshold_scale,
             max_samples=args.calibration_samples,
-            absolute_entropy_threshold=ABSOLUTE_ENTROPY_THRESHOLD,
+            entropy_ceiling=_ENTROPY_CEILING,
         )
 
     corruptions = tuple(name.strip() for name in args.corruptions.split(",") if name.strip())
@@ -114,20 +110,19 @@ def evaluate(args):
         image_window = torch.cat(window_images, dim=0)
         previous_window_logits = torch.cat(previous_logits, dim=0)
         labels_window = torch.cat(window_labels, dim=0)
-        # Gate redundant adaptations: skip when the incoming window's (free) pre-adaptation
-        # entropy barely differs from the entropy of the last adapted window.
         window_entropy = float(entropy_from_logits(previous_window_logits).mean().item())
         if (
             last_adapted_window_entropy is not None
-            and abs(window_entropy - last_adapted_window_entropy) < ADAPTATION_ENTROPY_DELTA
+            and abs(window_entropy - last_adapted_window_entropy) < _WINDOW_TOLERANCE
         ):
+            # Reuse the already-computed window predictions.
             window_predictions = previous_window_logits.argmax(dim=1)
             correct += int((window_predictions == labels_window).sum().item())
             total += labels_window.numel()
             skipped_positions.append(total - labels_window.numel())
             print(
-                f"Skipped adaptation at stream index {skipped_positions[-1]}; "
-                f"window entropy={window_entropy:.4f} vs last adapted={last_adapted_window_entropy:.4f}"
+                f"Skipped adaptation at stream index {skipped_positions[-1]} "
+                f"(window entropy {window_entropy:.4f})"
             )
             continue
         candidate_index = select_source_candidate(
