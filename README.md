@@ -14,7 +14,7 @@ python -m pip install -r requirements.txt
 
 Set dataset and checkpoint paths in [`configs/default.json`](configs/default.json). ImageNet data should use `ImageFolder` class directories. CIFAR-10 candidate construction expects the extracted torchvision CIFAR-10 training data; CIFAR-10-C expects its `.npy` corruption arrays and `labels.npy`.
 
-Prebuilt candidate pools are included at `checkpoints/cifar10_resnet50_candidates.pth` and `checkpoints/imagenet_resnet50_candidates.pth`. CIFAR-10 evaluation still requires your CIFAR-10-C data and a trusted serialized model checkpoint. ImageNet-C evaluation requires ImageNet-C data and uses the included ImageNet candidate pool by default. Candidate construction scripts remain available if you want to rebuild either pool from labeled training data.
+Prebuilt candidate pools are included at `checkpoints/cifar10_resnet50_candidates.pth` and `checkpoints/imagenet_resnet50_candidates.pth`. CIFAR-10 evaluation still requires your CIFAR-10-C data and a trusted serialized model checkpoint. ImageNet-C evaluation requires ImageNet-C data; by default it builds the candidate pool online from the test stream (set `online_candidates` to `false` to load the included pool instead). Candidate construction scripts remain available if you want to rebuild either pool from labeled training data.
 
 The included `checkpoints/imagenet_resnet50_candidates.pth` was regenerated so its BatchNorm statistics are consistent with the default torchvision ResNet-50 weights (the original pool was trained with different weights and loading it into the default model destroyed accuracy). If your `--checkpoint` differs, rebuild the pool (Option A) or use the online option (Option B) so the candidates always match the evaluated model.
 
