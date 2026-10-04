@@ -51,19 +51,6 @@ The scripts in `scripts/` provide equivalent Bash launch commands. Command-line 
 
 The shift detector is initialized with two values from the config: `reference_entropy`, the mean entropy of the source model on the source training set, and the trigger threshold (`fixed_threshold` for ImageNet-C, `threshold` for CIFAR-10-C). For ImageNet-C these default to `0.54` and `0.3`, and for CIFAR-10-C to `0.13` and `0.06`. These defaults were computed with our own model checkpoint on the corresponding source training data, so they depend on the specific model and dataset; please re-estimate them for your own checkpoint and training set.
 
-### Shift detection and adaptation
-
-ImageNet-C uses a fixed shift-detection mechanism that is part of the method rather than a tunable knob: adaptation triggers on the entropy threshold above and is additionally forced whenever the smoothed entropy exceeds `6.0`, which also caps the reference entropy at `6.0`. To avoid redundant work, an adaptation whose incoming window mean entropy is within `0.02` of the last adapted window is skipped without changing the model. Set `reference_entropy` to `null` to calibrate on clean `imagenet_val_root` instead of using the fixed value.
-
-To evaluate a random subset of each corruption (for example 10k samples per corruption as in our experiments):
-
-```bash
-python run_imagenetc.py --config configs/default.json \
-  --samples-per-corruption 10000 --sample-seed 0 \
-  --output outputs/imagenetc_emboditta_10k.json
-```
-
-Results are written as JSON and include `trigger_positions`, `skipped_positions`, and per-adaptation reports (`candidate_index`, `updated_batches`, `mean_entropy`).
 
 ## Citation
 
