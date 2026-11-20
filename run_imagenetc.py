@@ -19,7 +19,7 @@ from emboditta.config import parse_configured_args, require_values
 from emboditta.data import IMAGENETC_CORRUPTIONS, load_clean_imagenet, load_imagenetc_stream
 from emboditta.models import load_resnet50
 
-_ENTROPY_CEILING = 6.0
+_ENTROPY_CEILING = 6.1
 _WINDOW_TOLERANCE = 0.02
 
 
