@@ -71,7 +71,7 @@
     "samples_per_corruption": null,
     "calibration_samples": 1000,
     "reference_entropy": 0.54,
-    "fixed_threshold": 0.3,
+    "fixed_threshold": 0.05,
     "adaptation_samples": 512,
     "ema_momentum": 0.998,
     "threshold_scale": 5.0,

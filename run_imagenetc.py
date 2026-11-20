@@ -12,6 +12,7 @@ from emboditta.core import (
     calibrate_shift_detector,
     entropy_from_logits,
     extract_bn_state,
+    load_bn_state,
     load_candidate_pool,
     select_source_candidate,
 )
@@ -19,8 +20,12 @@ from emboditta.config import parse_configured_args, require_values
 from emboditta.data import IMAGENETC_CORRUPTIONS, load_clean_imagenet, load_imagenetc_stream
 from emboditta.models import load_resnet50
 
-_ENTROPY_CEILING = 6.1
-_WINDOW_TOLERANCE = 0.02
+_ENTROPY_CEILING = None
+_WINDOW_TOLERANCE = 0.0
+_IMPROVEMENT_DELTA = 0.05
+_COOLDOWN = 1000
+_FORCE_ADAPT_AFTER_COOLDOWN = False
+_RESET_TO_SOURCE_AFTER_COOLDOWN = False
 
 
 def evaluate(args):
@@ -77,7 +82,10 @@ def evaluate(args):
     trigger_positions = []
     adaptation_reports = []
     skipped_positions = []
+    cooldown_events = []
     last_adapted_window_entropy = None
+    suppress_until = 0
+    force_adapt = False
     model.eval()
 
     while True:
@@ -88,7 +96,20 @@ def evaluate(args):
         with torch.no_grad():
             logits = model(images.to(device))
         shifted = detector.update(logits)[0]
-        if not shifted:
+        if total < suppress_until:
+            correct += int((logits.argmax(dim=1).cpu() == labels).sum().item())
+            total += labels.numel()
+            continue
+        expired_cooldown = force_adapt
+        force_adapt = False
+        if expired_cooldown and _RESET_TO_SOURCE_AFTER_COOLDOWN:
+            load_bn_state(model, candidates[0])
+            correct += int((logits.argmax(dim=1).cpu() == labels).sum().item())
+            total += labels.numel()
+            continue
+        if expired_cooldown and _FORCE_ADAPT_AFTER_COOLDOWN:
+            pass
+        elif not shifted:
             correct += int((logits.argmax(dim=1).cpu() == labels).sum().item())
             total += labels.numel()
             continue
@@ -163,7 +184,14 @@ def evaluate(args):
                 **report,
             }
         )
+        previous_entropy = last_adapted_window_entropy
         last_adapted_window_entropy = float(report["mean_entropy"])
+        if previous_entropy is not None and last_adapted_window_entropy > previous_entropy - _IMPROVEMENT_DELTA:
+            # Adaptation did not lower the window entropy: suppress further triggers
+            # for a while instead of repeatedly adapting a non-improving domain.
+            suppress_until = total + _COOLDOWN
+            force_adapt = True
+            cooldown_events.append(trigger_positions[-1])
         detector.rebaseline(report["mean_entropy"])
         print(
             f"Adapted at stream index {trigger_positions[-1]} from candidate {candidate_index}; "
@@ -179,6 +207,8 @@ def evaluate(args):
         "trigger_positions": trigger_positions,
         "skip_count": len(skipped_positions),
         "skipped_positions": skipped_positions,
+        "cooldown_count": len(cooldown_events),
+        "cooldown_events": cooldown_events,
         "adaptations": adaptation_reports,
         "detector_reference_entropy": detector.reference_entropy,
         "detector_threshold": detector.threshold,
