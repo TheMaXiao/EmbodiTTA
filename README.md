@@ -50,7 +50,7 @@ The scripts in `scripts/` provide equivalent Bash launch commands. Command-line 
 
 ### Shift detection initialization
 
-The shift detector is initialized with two values from the config: `reference_entropy`, the mean entropy of the source model on the source training set, and the trigger threshold (`fixed_threshold` for ImageNet-C, `threshold` for CIFAR-10-C). For ImageNet-C these default to `0.54` and `0.3`, and for CIFAR-10-C to `0.13` and `0.06`. These defaults were computed with our own model checkpoint on the corresponding source training data, so they depend on the specific model and dataset; please re-estimate them for your own checkpoint and training set.
+The shift detector is initialized with two values from the config: `reference_entropy`, the mean entropy of the source model on the source training set, and the trigger threshold (`fixed_threshold` for ImageNet-C, `threshold` for CIFAR-10-C). For ImageNet-C these default to `0.54` and `0.05`, and for CIFAR-10-C to `0.13` and `0.06`. These defaults were computed with our own model checkpoint on the corresponding source training data, so they depend on the specific model and dataset; please re-estimate them for your own checkpoint and training set.
 
 
 ## Citation
