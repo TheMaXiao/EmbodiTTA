@@ -31,7 +31,7 @@
   },
   "run_cifar10c": {
     "cifar10c_root": null,
-    "model_checkpoint": null,
+    "model_checkpoint": "checkpoints/cifar10_resnet50.pth",
     "candidate_pool": "checkpoints/cifar10_resnet50_candidates.pth",
     "online_candidates": false,
     "model_module_root": null,

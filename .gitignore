@@ -6,6 +6,7 @@ checkpoints/*
 !checkpoints/
 checkpoints/*
 !checkpoints/cifar10_resnet50_candidates.pth
+!checkpoints/cifar10_resnet50.pth
 !checkpoints/imagenet_resnet50_candidates.pth
 outputs/
 data/
